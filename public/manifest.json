@@ -2,13 +2,13 @@
   "name": "Hometab",
   "short_name": "Hometab",
   "description": "Votre tableau de bord personnel.",
-  "start_url": "/",
+  "start_url": ".",
   "display": "standalone",
   "background_color": "#f7fafc",
   "theme_color": "#4299e1",
   "icons": [
     {
-      "src": "/img/icons/icon-512x512.svg",
+      "src": "img/icons/icon-512x512.svg",
       "sizes": "any",
       "type": "image/svg+xml"
     }

@@ -4,20 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hometab</title>
-    <link rel="stylesheet" href="/css/style.css">
-    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#4299e1">
     
     <!-- Firebase Compatibility SDKs -->
-    <script defer src="/firebase/firebase-app-compat.js"></script>
-    <script defer src="/firebase/firebase-auth-compat.js"></script>
-    <script defer src="/firebase/firebase-firestore-compat.js"></script>
+    <script defer src="firebase/firebase-app-compat.js"></script>
+    <script defer src="firebase/firebase-auth-compat.js"></script>
+    <script defer src="firebase/firebase-firestore-compat.js"></script>
     
     <!-- App Logic (must come BEFORE Alpine to set up listeners) -->
-    <script src="/js/main.js" defer></script>
+    <script src="js/main.js" defer></script>
     
     <!-- Alpine.js -->
-    <script src="/js/alpine.min.js" defer></script>
+    <script src="js/alpine.min.js" defer></script>
     <style>
         [x-cloak] { display: none !important; }
     </style>
@@ -383,7 +383,7 @@
             console.log('[Hometab] Service Worker is supported by the browser.');
             window.addEventListener('load', () => {
                 console.log('[Hometab] Page loaded. Attempting to register Service Worker...');
-                navigator.serviceWorker.register('/sw.js')
+                navigator.serviceWorker.register('sw.js')
                     .then(reg => {
                         console.log('[Hometab] Service Worker registration successful!', reg);
 
