@@ -13,9 +13,6 @@ const options = {
     cert: fs.readFileSync(path.join(__dirname, 'cert.pem'))
 };
 
-// Middleware pour servir les fichiers du SDK Firebase
-app.use('/firebase', express.static(path.join(__dirname, 'node_modules/firebase')));
-
 // Middleware pour servir les fichiers statiques depuis le dossier "public"
 app.use(express.static('public'));
 
