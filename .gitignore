@@ -1,0 +1,10 @@
+# Dependencies
+/node_modules
+
+# SSL Certificates
+key.pem
+cert.pem
+
+# OS-specific
+.DS_Store
+Thumbs.db

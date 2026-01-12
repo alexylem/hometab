@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hometab</title>
+    <link rel="stylesheet" href="/css/style.css">
+    
+    <!-- Firebase Compatibility SDKs -->
+    <script defer src="/firebase/firebase-app-compat.js"></script>
+    <script defer src="/firebase/firebase-auth-compat.js"></script>
+    <script defer src="/firebase/firebase-firestore-compat.js"></script>
+    
+    <!-- App Logic (must come BEFORE Alpine to set up listeners) -->
+    <script src="/js/main.js" defer></script>
+    
+    <!-- Alpine.js -->
+    <script src="/js/alpine.min.js" defer></script>
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body x-data="hometabApp()" class="bg-gray-100 font-sans p-4">
+
+    <!-- Global Header -->
+    <header class="flex justify-between items-center mb-4 space-x-4">
+        <!-- Environment Selector and Management Button -->
+        <div class="flex items-center space-x-4" x-cloak x-show="$store.authService.currentUser && !$store.environmentStore.loading">
+            <div x-data="{ open: false }" @click.away="open = false" class="relative">
+                <button @click="open = !open" class="flex items-center space-x-2 px-3 py-1 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    <span x-text="$store.environmentStore.currentEnv ? $store.environmentStore.currentEnv.name : 'Chargement...'"></span>
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                <div x-show="open" x-transition class="absolute left-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
+                    <div class="py-1">
+                        <template x-for="env in $store.environmentStore.activeEnvironments" :key="env.id">
+                            <a href="#" @click.prevent="$store.environmentStore.selectEnvironment(env.id); open = false" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" :class="{ 'bg-blue-100 text-blue-900': $store.environmentStore.currentEnv && $store.environmentStore.currentEnv.id === env.id }" x-text="env.name"></a>
+                        </template>
+                    </div>
+                </div>
+            </div>
+            <button @click="$store.envManagementModal.open()" class="p-1 rounded-lg text-blue-600 hover:text-blue-700 focus:outline-none" title="Gérer les environnements">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.536L16.732 3.732z"></path></svg>
+            </button>
+        </div>
+
+        <!-- Auth Section -->
+        <div class="flex items-center space-x-4">
+            <template x-if="$store.authService.currentUser">
+                <div class="flex items-center space-x-2">
+                    <img :src="$store.authService.currentUser.photoURL" alt="User Photo" class="w-8 h-8 rounded-full">
+                    <span class="text-gray-700 text-sm" x-text="$store.authService.currentUser.displayName"></span>
+                    <button @click="$store.authService.signOutUser()" class="p-1 rounded-lg text-red-600 hover:text-red-700 focus:outline-none" title="Déconnexion">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                    </button>
+                </div>
+            </template>
+            <template x-if="!$store.authService.currentUser && !$store.authService.loading">
+                <button @click="$store.authService.signInWithGoogle()" class="px-3 py-1 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700">Se connecter avec Google</button>
+            </template>
+        </div>
+    </header>
+
+    <!-- Main Content Grid -->
+    <main class="grid grid-cols-1 md:grid-cols-4 gap-4" x-cloak x-show="$store.authService.currentUser && $store.environmentStore.currentEnv && !$store.environmentStore.loading">
+
+        <!-- Left Column (Links & Notes) -->
+        <div class="md:col-span-1 flex flex-col gap-4">
+            <!-- Links Widget -->
+            <div x-data="linksApp()" @link-saved.window="processSaveEvent($event.detail)" class="bg-white rounded-lg shadow-xl p-4">
+                <h1 class="text-xl font-bold text-gray-800 mb-3 text-center">Liens Utiles</h1>
+                <div class="mb-4 text-right">
+                    <button @click="openAddLinkModal()" class="flex-shrink-0 bg-blue-600 text-white p-1 rounded-lg hover:bg-blue-700 inline-flex items-center justify-center">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                    </button>
+                </div>
+                <ul class="space-y-1">
+                    <template x-for="link in items" :key="link.id">
+                        <li class="group flex items-center">
+                            <a :href="link.url" target="_blank" rel="noopener noreferrer" class="flex-grow flex items-center space-x-2 p-1 rounded-md hover:bg-gray-100">
+                                <img 
+    :src="link.favicon || (new URL(link.url).protocol + '//' + new URL(link.url).hostname + '/favicon.ico')" 
+    @error="$event.target.src='https://www.google.com/s2/favicons?sz=32&domain_url=' + (new URL(link.url).hostname)"
+    onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iY3VycmVudENvbG9yIiBjbGFzcz0iYmkgYmktZ2xvYmUiIHZpZXdCb3g9IjAgMCAxNiAxNiI+CiAgPHBhdGggZD0iTTguNSA1YS41LjUgMCAwIDAtMSAw djNnMS41YS41LjUgMCAwIDAgMSAwdi00ek0xMS41IDVhLjUuNSAwIDAgMC0xIDAgdjRhLjUuNSAwIDAgMCAxIDB2LTRaTTUuMDQyIDMuNTA2YTEuOTkgMS45OSAwIDAgMCAgMy40NTMgMCgxLjk5MSAxLjk5MSAwIDAgMC0zLjQ1MyAwem0zLjA4MyAxLjQ5M2EuNS41IDAgMCAxLS45MTYgLjQwNGwxLjU1Ljg5My0uNjYtMS4yOTd6TTguNSA1LjVhLjUuNSAwIDAgMS0xIDAgdi0uNWEuNS41IDAgMCAxIDEgMHYuNXptLjUgMy40NTJhLjUuNSAwIDAgMCAxIDAgdi0yYS41LjUgMCAwIDAtMSAwdiJnPjwvcGF0aD4KICA8cGF0aCBkPSJNNCA4YTQgNCAwIDEgMSAwLTggNCA0IDAgMCAxIDAgOHptLTYgOGExIDEgMCAwIDEgMC0yIDYgNiAwIDEgMSAxMiAwIDEgMSAwIDAgMSAwIDJINnoiPjwvcGF0aD4KPC9zdmc+'"
+    class="w-4 h-4">
+                                <span class="text-sm text-gray-800" x-text="link.title"></span>
+                            </a>
+                            <div class="flex items-center ml-2 opacity-0 group-hover:opacity-100">
+                                <button @click="openEditLinkModal(link)" class="text-gray-500 hover:text-blue-600 p-0.5 cursor-pointer" title="Modifier le lien"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.536L16.732 3.732z"></path></svg></button>
+                                <button @click="removeLink(link.id)" class="text-gray-500 hover:text-red-600 p-0.5 cursor-pointer" title="Supprimer le lien"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+                            </div>
+                        </li>
+                    </template>
+                </ul>
+                <p x-show="items.length === 0" class="text-center text-gray-500 text-sm py-3">Aucun lien pour le moment.</p>
+            </div>
+
+            <!-- Notes Widget -->
+            <div x-data="notesApp()" @note-saved.window="processSaveEvent($event.detail)" class="bg-white rounded-lg shadow-xl p-4">
+                <div class="flex justify-between items-center mb-3">
+                    <h1 class="text-xl font-bold text-gray-800 text-center">Notes</h1>
+                    <button @click="openNewNoteModal()" class="bg-blue-600 text-white p-1 rounded-lg hover:bg-blue-700">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                    </button>
+                </div>
+                <ul class="space-y-1">
+                    <template x-for="note in items" :key="note.id">
+                        <li class="group flex items-center">
+                            <div class="flex-grow p-1 cursor-pointer rounded-md hover:bg-gray-100" @click="openEditNoteModal(note)">
+                                <p class="text-sm text-gray-800 truncate" x-text="getNoteTitle(note.content)"></p>
+                            </div>
+                            <div class="flex items-center ml-2 opacity-0 group-hover:opacity-100">
+                                <button @click="removeNote(note.id)" class="text-gray-500 hover:text-red-600 p-0.5 cursor-pointer" title="Supprimer la note"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+                            </div>
+                        </li>
+                    </template>
+                </ul>
+                <p x-show="items.length === 0" class="text-center text-gray-500 text-sm py-3">Aucune note pour le moment.</p>
+            </div>
+        </div>
+
+        <!-- Todos Widget -->
+        <div x-data="todoApp()" class="bg-white rounded-lg shadow-xl p-4 md:col-span-2">
+             <h1 class="text-xl font-bold text-gray-800 mb-3 text-center">Tâches</h1>
+            <div class="mb-4">
+                <div class="flex items-center space-x-2">
+                    <input x-model="newTodo" @keydown.enter.prevent="editingTodoId ? updateTodo() : addTodo()" @keydown.escape.prevent="cancelEditingTodo()" type="text" placeholder=" @demandeur tache @personne. Finir par ! pour 'Aujourd'hui'" class="w-full flex-grow p-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                     <template x-if="!editingTodoId"><button @click="addTodo()" class="flex-shrink-0 bg-blue-600 text-white p-1 rounded-lg hover:bg-blue-700"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg></button></template>
+                    <template x-if="editingTodoId"><div class="flex space-x-1"><button @click="updateTodo()" class="flex-shrink-0 bg-green-600 text-white p-1 rounded-lg hover:bg-green-700"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg></button><button @click="cancelEditingTodo()" class="flex-shrink-0 bg-gray-400 text-white p-1 rounded-lg hover:bg-gray-500"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button></div></template>
+                </div>
+            </div>
+            <div class="mb-3" x-show="allPeople.length > 0">
+                <div class="flex flex-wrap gap-2">
+                    <template x-for="person in allPeople" :key="person.name"><button @click="toggleFilterPerson(person.name)" :class="{ 'bg-blue-600 text-white': selectedPeople.includes(person.name), 'bg-gray-200 text-gray-700 hover:bg-gray-300': !selectedPeople.includes(person.name) }" class="px-3 py-0.5 rounded-full text-xs font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"><span x-text="capitalize(person.name)"></span> <span x-text="person.count" class="font-normal text-gray-500" :class="{'text-blue-200': selectedPeople.includes(person.name)}"></span></button></template>
+                    <button x-show="selectedPeople.length > 0" @click="selectedPeople = []" class="px-3 py-0.5 rounded-full text-xs font-medium text-red-600 hover:bg-red-100 transition-colors duration-200 focus:outline-none" title="Effacer les filtres">&times;</button>
+                </div>
+            </div>
+            <div class="space-y-1">
+                <div x-show="todayTodos.length > 0"><h2 class="text-xs font-bold uppercase text-blue-600 mb-1 pl-8">Aujourd'hui</h2><ul class="space-y-1"><template x-for="todo in todayTodos" :key="todo.id"><li class="pb-1 group flex items-center"><div class="w-6 h-6 flex-shrink-0 flex items-center justify-center"><button @click="moveToLater(todo.id)" class="text-gray-400 hover:text-gray-600 p-0.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" title="Déplacer à 'Plus tard'"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg></button></div><div class="flex-grow flex items-center justify-between"><div class="flex items-center space-x-2 flex-grow"><input type="checkbox" x-bind:checked="todo.completed" @change="toggleCompletion(todo.id)" class="form-checkbox h-4 w-4 text-blue-600 rounded-md focus:ring-blue-500 flex-shrink-0 cursor-pointer"><div class="flex-grow"><p class="text-gray-800 text-sm leading-tight" x-html="highlightMentions(todo.text)"></p></div></div><div class="flex items-center ml-2 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200"><button @click="startEditingTodo(todo)" class="text-gray-500 hover:text-blue-600 p-0.5 cursor-pointer" title="Modifier"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.536L16.732 3.732z"></path></svg></button><button @click="removeTodo(todo.id)" class="text-gray-500 hover:text-red-600 p-0.5 cursor-pointer" title="Supprimer"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button></div></div></li></template></ul></div>
+                <div class="pt-2" x-show="todayTodos.length > 0 && laterTodos.length > 0"></div>
+                <div x-show="laterTodos.length > 0"><h2 class="text-xs font-bold uppercase text-gray-500 mb-1 pl-8" x-show="todayTodos.length > 0">Plus tard</h2><ul class="space-y-1"><template x-for="todo in laterTodos" :key="todo.id"><li class="pb-1 group flex items-center"><div class="w-6 h-6 flex-shrink-0 flex items-center justify-center"><button @click="moveToToday(todo.id)" class="text-blue-400 hover:text-blue-600 p-0.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" title="Ajouter à 'Aujourd'hui'"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path></svg></button></div><div class="flex-grow flex items-center justify-between"><div class="flex items-center space-x-2 flex-grow"><input type="checkbox" x-bind:checked="todo.completed" @change="toggleCompletion(todo.id)" class="form-checkbox h-4 w-4 text-gray-400 rounded-md focus:ring-blue-500 flex-shrink-0 cursor-pointer"><div class="flex-grow"><p class="text-gray-800 text-sm leading-tight" x-html="highlightMentions(todo.text)"></p></div></div><div class="flex items-center ml-2 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200"><button @click="startEditingTodo(todo)" class="text-gray-500 hover:text-blue-600 p-0.5 cursor-pointer" title="Modifier"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.536L16.732 3.732z"></path></svg></button><button @click="removeTodo(todo.id)" class="text-gray-500 hover:text-red-600 p-0.5 cursor-pointer" title="Supprimer"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button></div></div></li></template></ul></div>
+                <div x-show="completedTodos.length > 0"><div class="pt-2" x-show="(todayTodos.length > 0 || laterTodos.length > 0) && completedTodos.length > 0"></div><h2 class="text-xs font-bold uppercase text-gray-500 mb-1 pl-8"><span>Terminées</span><button @click="clearCompletedTasks()" class="text-red-500 hover:text-red-700 text-xs font-normal ml-2 focus:outline-none opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" title="Effacer les tâches terminées"><svg class="w-4 h-4 inline-block align-text-bottom" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg> Effacer terminées</button></h2><ul class="space-y-1"><template x-for="todo in completedTodos" :key="todo.id"><li class="pb-1 group flex items-center opacity-60"><div class="w-6 h-6 flex-shrink-0 flex items-center justify-center"></div><div class="flex-grow flex items-center justify-between"><div class="flex items-center space-x-2 flex-grow"><input type="checkbox" x-bind:checked="todo.completed" @change="toggleCompletion(todo.id)" class="form-checkbox h-4 w-4 text-blue-600 rounded-md focus:ring-blue-500 flex-shrink-0 cursor-pointer"><div class="flex-grow"><p class="line-through text-gray-800 text-sm leading-tight" x-html="highlightMentions(todo.text)"></p></div></div><div class="flex items-center ml-2 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200"><button @click="removeTodo(todo.id)" class="text-gray-500 hover:text-red-600 p-0.5 cursor-pointer" title="Supprimer"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button></div></div></li></template></ul></div>
+                <p x-show="items.length === 0" class="text-center text-gray-500 text-sm py-3">Aucune tâche pour le moment !</p>
+                <p x-show="items.length > 0 && todayTodos.length === 0 && laterTodos.length === 0 && completedTodos.length > 0 && selectedPeople.length > 0" class="text-center text-gray-500 text-sm py-3">Aucune tâche non terminée ne correspond à votre filtre.</p>
+            </div>
+        </div>
+
+        <!-- Shopping List Widget -->
+        <div x-data="shoppingListApp()" class="bg-white rounded-lg shadow-xl p-4 md:col-span-1">
+            <h1 class="text-xl font-bold text-gray-800 mb-3 text-center">Liste d'achats</h1>
+            <div class="mb-4">
+                <div class="flex items-center space-x-2">
+                    <input x-model="newItem" @keydown.enter.prevent="editingItemId ? updateItem() : addItem()" @keydown.escape.prevent="cancelEditing()" type="text" placeholder="Ajouter un article..." class="w-full flex-grow p-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                    <template x-if="!editingItemId"><button @click="addItem()" class="flex-shrink-0 bg-blue-600 text-white p-1 rounded-lg hover:bg-blue-700"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg></button></template>
+                    <template x-if="editingItemId"><div class="flex space-x-1"><button @click="updateItem()" class="flex-shrink-0 bg-green-600 text-white p-1 rounded-lg hover:bg-green-700"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg></button><button @click="cancelEditing()" class="flex-shrink-0 bg-gray-400 text-white p-1 rounded-lg hover:bg-gray-500"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button></div></template>
+                </div>
+            </div>
+            <div class="space-y-1">
+                <ul class="space-y-1"><template x-for="item in activeItems" :key="item.id"><li class="pb-1 group flex items-center"><div class="flex-grow flex items-center justify-between"><div class="flex items-center space-x-2 flex-grow"><input type="checkbox" :checked="item.completed" @change="toggleCompletion(item.id)" class="form-checkbox h-4 w-4 text-blue-600 rounded-md focus:ring-blue-500 flex-shrink-0 cursor-pointer"><div class="flex-grow"><p class="text-gray-800 text-sm leading-tight" x-text="item.text"></p></div></div><div class="flex items-center ml-2 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200"><button @click="startEditing(item)" class="text-gray-500 hover:text-blue-600 p-0.5 cursor-pointer" title="Modifier"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.536L16.732 3.732z"></path></svg></button><button @click="removeItem(item.id)" class="text-gray-500 hover:text-red-600 p-0.5 cursor-pointer" title="Supprimer"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button></div></div></li></template></ul>
+                <div x-show="completedItems.length > 0"><div class="pt-2" x-show="activeItems.length > 0 && completedItems.length > 0"></div><h2 class="text-xs font-bold uppercase text-gray-500 mb-1"><span>Achetés</span><button @click="clearCompletedItems()" class="text-red-500 hover:text-red-700 text-xs font-normal ml-2 focus:outline-none opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" title="Effacer les articles achetés"> Effacer</button></h2><ul class="space-y-1"><template x-for="item in completedItems" :key="item.id"><li class="pb-1 group flex items-center opacity-60"><div class="flex-grow flex items-center justify-between"><div class="flex items-center space-x-2 flex-grow"><input type="checkbox" :checked="item.completed" @change="toggleCompletion(item.id)" class="form-checkbox h-4 w-4 text-blue-600 rounded-md focus:ring-blue-500 flex-shrink-0 cursor-pointer"><div class="flex-grow"><p class="line-through text-gray-800 text-sm leading-tight" x-text="item.text"></p></div></div><div class="flex items-center ml-2 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200"><button @click="startEditing(item)" class="text-gray-500 hover:text-blue-600 p-0.5 cursor-pointer" title="Modifier"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.536L16.732 3.732z"></path></svg></button><button @click="removeItem(item.id)" class="text-gray-500 hover:text-red-600 p-0.5 cursor-pointer" title="Supprimer"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button></div></div></li></template></ul></div>
+                <p x-show="items.length === 0" class="text-center text-gray-500 text-sm py-3">Aucun article dans la liste.</p>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Modals -->
+    <div x-show="isExportModalOpen" @click.self="isExportModalOpen = false" class="fixed inset-0 bg-black/25 flex items-center justify-center p-4 z-20"><div class="bg-white rounded-lg p-6 w-full max-w-2xl"><h2 class="text-lg font-bold mb-4">Exporter la configuration</h2><p class="text-sm mb-2">Copiez ce texte et sauvegardez-le. Vous pourrez l'utiliser pour importer votre configuration sur un autre appareil.</p><textarea x-ref="exportArea" readonly class="w-full h-64 font-mono text-xs border rounded bg-gray-50 p-2" x-text="exportDataString"></textarea><button @click="isExportModalOpen = false" class="mt-4 px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">Fermer</button></div></div>
+    <div x-show="isImportModalOpen" @click.self="isImportModalOpen = false" class="fixed inset-0 bg-black/25 flex items-center justify-center p-4 z-20"><div class="bg-white rounded-lg p-6 w-full max-w-2xl"><h2 class="text-lg font-bold mb-4">Importer la configuration</h2><p class="text-sm mb-2">Collez le texte de configuration que vous avez sauvegardé.</p><textarea x-model="importDataString" class="w-full h-64 font-mono text-xs border rounded p-2"></textarea><div class="mt-4 flex justify-end space-x-2"><button @click="isImportModalOpen = false" class="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">Annuler</button><button @click="importFromText()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Importer et recharger</button></div></div></div>
+    
+    <!-- Environment Management Modal -->
+    <div x-data="$store.envManagementModal" x-show="isOpen" @keydown.escape.window="close()" class="fixed inset-0 bg-black/25 flex items-center justify-center p-4 z-40" x-cloak>
+        <div class="bg-white rounded-lg p-6 w-full max-w-2xl" @click.away="close()">
+            <h2 class="text-lg font-bold mb-4">Gérer les environnements</h2>
+
+            <div class="mb-6">
+                <h3 class="font-semibold mb-2">Environnements actifs</h3>
+                <ul class="space-y-2">
+                    <template x-for="env in $store.environmentStore.activeEnvironments" :key="env.id">
+                        <li class="flex items-center justify-between p-2 bg-gray-50 rounded-md">
+                            <template x-if="editingEnvId === env.id">
+                                <input x-model="editingEnvName" @keydown.enter="$store.environmentStore.renameEnvironment(env.id, editingEnvName); cancelRename()" @keydown.escape="cancelRename()" type="text" class="flex-grow p-1 border rounded text-sm">
+                            </template>
+                            <template x-if="editingEnvId !== env.id">
+                                <span class="text-sm" x-text="env.name"></span>
+                            </template>
+
+                            <div class="flex space-x-2 ml-4">
+                                <template x-if="editingEnvId === env.id">
+                                    <button @click="$store.environmentStore.renameEnvironment(env.id, editingEnvName); cancelRename()" class="text-green-600 hover:text-green-800 text-sm">Sauvegarder</button>
+                                    <button @click="cancelRename()" class="text-gray-500 hover:text-gray-700 text-sm">Annuler</button>
+                                </template>
+                                <template x-if="editingEnvId !== env.id">
+                                    <button @click="startRename(env)" class="text-blue-600 hover:text-blue-800 text-sm">Renommer</button>
+                                    <button @click="$store.environmentStore.archiveEnvironment(env.id)" :disabled="$store.environmentStore.activeEnvironments.length <= 1" class="text-yellow-600 hover:text-yellow-800 text-sm disabled:opacity-50 disabled:cursor-not-allowed" title="Archiver l'environnement">Archiver</button>
+                                </template>
+                            </div>
+                        </li>
+                    </template>
+                </ul>
+            </div>
+
+            <div class="mb-6" x-show="$store.environmentStore.archivedEnvironments.length > 0">
+                <h3 class="font-semibold mb-2">Environnements archivés</h3>
+                <ul class="space-y-2">
+                    <template x-for="env in $store.environmentStore.archivedEnvironments" :key="env.id">
+                        <li class="flex items-center justify-between p-2 bg-gray-100 rounded-md">
+                            <span class="text-sm text-gray-500" x-text="env.name"></span>
+                            <button @click="$store.environmentStore.unarchiveEnvironment(env.id)" class="text-green-600 hover:text-green-800 text-sm" title="Désarchiver l'environnement">Désarchiver</button>
+                        </li>
+                    </template>
+                </ul>
+            </div>
+
+            <div class="mb-6">
+                <h3 class="font-semibold mb-2">Créer un nouvel environnement</h3>
+                <div class="flex space-x-2">
+                    <input x-model="newEnvName" @keydown.enter="$store.environmentStore.createEnvironment(newEnvName); newEnvName = ''" type="text" placeholder="Nom du nouvel environnement" class="flex-grow p-2 border rounded-md">
+                    <button @click="$store.environmentStore.createEnvironment(newEnvName); newEnvName = ''" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Créer</button>
+                </div>
+            </div>
+
+            <div class="flex justify-end">
+                <button @click="close()" class="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300">Fermer</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Notes Modal -->
+    <div x-show="$store.notesModal.isOpen" @keydown.escape.window="$store.notesModal.close()" class="fixed inset-0 bg-black/25 flex items-center justify-center p-4 z-30" x-cloak>
+        <div class="bg-white rounded-lg p-6 w-full max-w-2xl" @click.away="$store.notesModal.close()">
+            <h2 class="text-lg font-bold mb-4" x-text="$store.notesModal.editingId ? 'Modifier la note' : 'Nouvelle note'"></h2>
+            <textarea x-model="$store.notesModal.content" class="w-full h-80 font-mono text-sm border rounded p-2" placeholder="Votre note..."></textarea>
+            <div class="mt-4 flex justify-end space-x-2">
+                <button @click="$store.notesModal.close()" class="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">Annuler</button>
+                <button @click="$dispatch('note-saved', { content: $store.notesModal.content, editingId: $store.notesModal.editingId }); $store.notesModal.close()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Sauvegarder</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Links Modal -->
+    <div x-show="$store.linksModal.isOpen" @keydown.escape.window="$store.linksModal.close()" class="fixed inset-0 bg-black/25 flex items-center justify-center p-4 z-30" x-cloak>
+        <div class="bg-white rounded-lg p-6 w-full max-w-2xl" @click.away="$store.linksModal.close()">
+            <h2 class="text-lg font-bold mb-4" x-text="$store.linksModal.editingId ? 'Modifier le lien' : 'Nouveau lien'"></h2>
+            <div class="space-y-4">
+                <div>
+                    <label for="link-title" class="block text-sm font-medium text-gray-700">Titre</label>
+                    <input id="link-title" x-model="$store.linksModal.title" type="text" class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div>
+                    <label for="link-url" class="block text-sm font-medium text-gray-700">URL</label>
+                    <input id="link-url" x-model="$store.linksModal.url" type="text" class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div>
+                    <label for="favicon-url" class="block text-sm font-medium text-gray-700">URL du Favicon (facultatif)</label>
+                    <input id="favicon-url" x-model="$store.linksModal.faviconDataUrl" type="url" class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="Ex: https://example.com/favicon.ico">
+                    <p class="mt-1 text-sm text-gray-500">Ou téléverser une image :</p>
+                    <input id="favicon-upload" @change="$store.linksModal.handleFaviconUpload($event)" type="file" accept="image/*" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                </div>
+            </div>
+            <div class="mt-4 flex justify-end space-x-2">
+                <button @click="$store.linksModal.close()" class="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">Annuler</button>
+                <button @click="$dispatch('link-saved', $store.linksModal.save())" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Sauvegarder</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

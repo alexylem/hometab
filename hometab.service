@@ -1,0 +1,16 @@
+[Unit]
+Description=Hometab new tab page server
+After=network.target
+
+[Service]
+User=pi
+WorkingDirectory=/home/pi/hometab
+# We use the full path to npm, and the 'start' script will handle the rest
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
